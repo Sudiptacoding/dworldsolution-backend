@@ -58,9 +58,41 @@ async function run() {
 
     // Test Route
 
-    app.get("/", (req, res) => {
-      res.send("Hello from Admin Backend");
+app.get("/", async (req, res) => {
+  try {
+    // MongoDB ping
+    await db.command({ ping: 1 });
+
+    // চাইলে একটি collection touch করতে পারেন
+    const currentTime = new Date();
+
+    await db.collection("server_health").updateOne(
+      { name: "uptime-monitor" },
+      {
+        $set: {
+          lastChecked: currentTime,
+          status: "running",
+        },
+      },
+      { upsert: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Server & MongoDB running",
+      time: currentTime,
+      mongodb: "connected",
     });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "MongoDB connection failed",
+      error: error.message,
+    });
+  }
+});
 
     // ✅ Admin Auth Routes (imported)
     adminAuthRoutes(app, collection, transporter, process.env.EMAIL_USER);
