@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const cron = require("node-cron");
+const axios = require('axios'); 
+const UAParser = require('user-agent-parser');
 const bodyParser = require("body-parser");
 const nodemailer = require("nodemailer");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -32,8 +34,6 @@ const client = new MongoClient(uri, {
   },
 });
 
-
-
 // Mail Setup
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -46,7 +46,7 @@ const transporter = nodemailer.createTransport({
 async function run() {
   try {
     await client.connect();
-    const db = client.db("lumenza");
+    const db = client.db("dworldsoluation");
     const MonthlyKeepAlive = db.collection("MonthlyKeepAlive");
     const collection = db.collection("admin");
     const HeaderSingleVideo = db.collection("HeaderSingleVideo");
@@ -56,21 +56,11 @@ async function run() {
     const Contract = db.collection("contact");
     const Influencer = db.collection("influencer");
 
-
-
     // Test Route
-
-
-
-
 
     app.get("/", (req, res) => {
       res.send("Hello from Admin Backend");
     });
-
-
-
-
 
     // ✅ Admin Auth Routes (imported)
     adminAuthRoutes(app, collection, transporter, process.env.EMAIL_USER);
@@ -80,14 +70,8 @@ async function run() {
     app.use("/contact", contactRoutes(Contract));
     app.use("/influencers", influencerRoutes(Influencer));
 
-
-
-
-
-
-
     // Monthly cron with new collection
-    cron.schedule("0 2 1 * *", async () => {
+    cron.schedule("0 0 0 */10 * *", async () => {
       try {
         const now = new Date();
         const dummyData = {
@@ -100,12 +84,62 @@ async function run() {
       }
     });
 
+
+// ... আগের ইমপোর্টগুলো
+
+// ট্র্যাকিং এন্ডপয়েন্ট
+app.post('/api/track', async (req, res) => {
+    try {
+        const { url, referrer, sessionDuration } = req.body;
+        let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        const targetIp = (ip === '::1' || ip === '127.0.0.1') ? '103.149.160.1' : ip;
+
+        let country = 'Bangladesh', city = 'Dhaka';
+        try {
+            const geo = await axios.get(`http://ip-api.com/json/${targetIp}`);
+            if(geo.data.status === 'success') {
+                country = geo.data.country;
+                city = geo.data.city;
+            }
+        } catch (e) {}
+
+        const parser = new UAParser(req.headers['user-agent']);
+        await db.collection('visitors').insertOne({
+            ip: ip === '::1' ? 'Localhost' : ip,
+            page: url,
+            country,
+            city,
+            referrer: referrer || 'Direct',
+            sessionDuration: sessionDuration || 0,
+            timestamp: new Date()
+        });
+        res.status(200).json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ডাটা দেখার রাউট
+app.get('/api/analytics', async (req, res) => {
+    const data = await db.collection('visitors').find().toArray();
+    res.json(data);
+});
+
+// ক্লিনআপ রাউট (POST ব্যবহার করেছি যাতে এরর না আসে)
+app.post('/api/cleanup', async (req, res) => {
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const result = await db.collection('visitors').deleteMany({ timestamp: { $lt: oneMonthAgo } });
+    res.json({ message: `Deleted ${result.deletedCount} records` });
+});
+
+
+
+
     // Start Server
     app.listen(port, () => {
       console.log(`🚀 Server running on http://localhost:${port}`);
     });
   } catch (err) {
-    console.error("❌ Error:", err);
+    console.error("❌ Error:", error);
   }
 }
 
