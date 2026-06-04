@@ -54,7 +54,8 @@ async function run() {
     const VideoAndShortsCollection = db.collection("VideoAndShorts");
 
     const Contract = db.collection("contact");
-    const Influencer = db.collection("influencer");
+    const Influencer = db.collection("influencer")
+     const cardsCollection = db.collection("cards");
 
     // Test Route
 
@@ -118,6 +119,81 @@ app.get("/", async (req, res) => {
 
 
 // ... আগের ইমপোর্টগুলো
+
+// 1. READ ALL (সব কার্ড নিয়ে আসার জন্য API)
+    app.get("/api/cards", async (req, res) => {
+      try {
+        const cards = await cardsCollection.find({}).toArray();
+        res.status(200).json(cards);
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // 2. CREATE (নতুন কার্ড তৈরি করার API)
+    app.post("/api/cards", async (req, res) => {
+      try {
+        const { title, description, image } = req.body;
+        if (!title || !description || !image) {
+          return res.status(400).json({ error: "All fields are required" });
+        }
+        
+        const newCard = { 
+          title, 
+          description, 
+          image, 
+          createdAt: new Date() 
+        };
+        
+        const result = await cardsCollection.insertOne(newCard);
+        res.status(201).json({ _id: result.insertedId, ...newCard });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // 3. UPDATE (কার্ড এডিট করার API)
+    app.put("/api/cards/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { title, description, image } = req.body;
+        
+        const updatedDoc = {
+          $set: { title, description, image }
+        };
+        
+        const result = await cardsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          updatedDoc
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).json({ error: "Card not found" });
+        }
+        res.status(200).json({ message: "Card updated successfully" });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // 4. DELETE (কার্ড মুছে ফেলার API)
+    app.delete("/api/cards/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const result = await cardsCollection.deleteOne({ _id: new ObjectId(id) });
+        
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ error: "Card not found" });
+        }
+        res.status(200).json({ message: "Card deleted successfully" });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+
+
+
 
 // ট্র্যাকিং এন্ডপয়েন্ট
 app.post('/api/track', async (req, res) => {
